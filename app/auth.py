@@ -8,7 +8,7 @@ from sqlalchemy import select
 from database import get_db
 from app.models.user import User
 
-secret_key = "change_this_secret_key_in_production"
+secret_key = "secret_key_secret_key_secret_key"
 algorithm = "HS256"
 tokens_time = 60 * 24 * 7
 
