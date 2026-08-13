@@ -1,6 +1,5 @@
-from datetime import datetime
+from datetime import datetime, date
 from pydantic import BaseModel
-from app.schemas.comment import GameCommentOut
 
 class ScreenshotOut(BaseModel):
     id: int
@@ -13,7 +12,7 @@ class GameOut(BaseModel):
     description: str | None
     price: float
     genre: str | None
-    release_date: datetime | None
+    release_date: date | None
     header_image: str | None
     trailer_url: str | None
     created_at: datetime
@@ -21,14 +20,14 @@ class GameOut(BaseModel):
     model_config = {"from_attributes": True}
 
 class GameDetailOut(GameOut):
-    comments: list[GameCommentOut] = []
+    comments: list["GameCommentOut"] = []
 
 class CreateGameRequest(BaseModel):
     title: str
     description: str | None = None
     price: float
     genre: str | None = None
-    release_date: datetime | None = None
+    release_date: date | None = None
     header_image: str | None = None
     trailer_url: str | None = None
     screenshots: list[str] = []
@@ -38,7 +37,7 @@ class UpdateGameRequest(BaseModel):
     description: str | None = None
     price: float | None = None
     genre: str | None = None
-    release_date: datetime | None = None
+    release_date: date | None = None
     header_image: str | None = None
     trailer_url: str | None = None
     screenshots: list[str] | None = None

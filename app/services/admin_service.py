@@ -8,6 +8,12 @@ from app.models.comment import GameComment, ProfileComment
 from app.schemas.comment import BanRequest
 from app.schemas.game import CreateGameRequest, UpdateGameRequest
 
+async def get_game_with_screenshots(game_id: int, db: AsyncSession) -> Game:
+    result = await db.execute(
+        select(Game).where(Game.id == game_id).options(selectinload(Game.screenshots))
+    )
+    return result.scalar_one()
+
 async def list_all_users(db: AsyncSession) -> list[User]:
     result = await db.execute(select(User).order_by(User.id))
     return list(result.scalars().all())
@@ -84,11 +90,7 @@ async def create_game(data: CreateGameRequest, db: AsyncSession) -> Game:
 
     await db.commit()
     await db.refresh(game)
-
-    result = await db.execute(
-        select(Game).where(Game.id == game.id).options(selectinload(Game.screenshots))
-    )
-    return result.scalar_one()
+    return await get_game_with_screenshots(game.id, db)
 
 async def update_game(game_id: int, data: UpdateGameRequest, db: AsyncSession) -> Game:
     result = await db.execute(
@@ -122,11 +124,7 @@ async def update_game(game_id: int, data: UpdateGameRequest, db: AsyncSession) -
 
     await db.commit()
     await db.refresh(game)
-
-    result = await db.execute(
-        select(Game).where(Game.id == game.id).options(selectinload(Game.screenshots))
-    )
-    return result.scalar_one()
+    return await get_game_with_screenshots(game.id, db)
 
 async def delete_game(game_id: int, db: AsyncSession) -> None:
     result = await db.execute(select(Game).where(Game.id == game_id))
