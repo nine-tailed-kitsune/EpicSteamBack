@@ -1,8 +1,11 @@
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from app.models.user import User
+from app.models.game import Game
+from app.models.purchase import Purchase
+from app.models.wishlist import wishlist_items
 from app.models.comment import ProfileComment
 from app.schemas.user import UpdateProfileRequest
 from app.schemas.comment import ProfileCommentOut, AddCommentRequest
@@ -14,6 +17,77 @@ async def get_user_by_id(user_id: int, db: AsyncSession) -> User:
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
     return user
+
+async def search_users(query: str, db: AsyncSession) -> list[User]:
+    result = await db.execute(
+        select(User).where(User.username.ilike(f"%{query}%")).order_by(User.username).limit(10)
+    )
+    return list(result.scalars().all())
+
+async def ensure_user_exists(user_id: int, db: AsyncSession) -> None:
+    result = await db.execute(select(User).where(User.id == user_id))
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+async def get_user_library(
+    user_id: int,
+    db: AsyncSession,
+    skip: int | None = None,
+    limit: int | None = None
+) -> list[Game]:
+    await ensure_user_exists(user_id, db)
+
+    query = (
+        select(Game)
+        .join(Purchase, Purchase.game_id == Game.id)
+        .where(Purchase.user_id == user_id)
+        .options(selectinload(Game.screenshots), selectinload(Game.category))
+        .order_by(Purchase.purchased_at.desc())
+    )
+    if skip is not None:
+        query = query.offset(skip)
+    if limit is not None:
+        query = query.limit(limit)
+
+    result = await db.execute(query)
+    return list(result.scalars().unique().all())
+
+async def count_user_library(user_id: int, db: AsyncSession) -> int:
+    await ensure_user_exists(user_id, db)
+    result = await db.execute(
+        select(func.count()).select_from(Purchase).where(Purchase.user_id == user_id)
+    )
+    return result.scalar_one()
+
+async def get_user_wishlist(
+    user_id: int,
+    db: AsyncSession,
+    skip: int | None = None,
+    limit: int | None = None
+) -> list[Game]:
+    await ensure_user_exists(user_id, db)
+
+    query = (
+        select(Game)
+        .join(wishlist_items, wishlist_items.c.game_id == Game.id)
+        .where(wishlist_items.c.user_id == user_id)
+        .options(selectinload(Game.screenshots), selectinload(Game.category))
+        .order_by(Game.id.desc())
+    )
+    if skip is not None:
+        query = query.offset(skip)
+    if limit is not None:
+        query = query.limit(limit)
+
+    result = await db.execute(query)
+    return list(result.scalars().unique().all())
+
+async def count_user_wishlist(user_id: int, db: AsyncSession) -> int:
+    await ensure_user_exists(user_id, db)
+    result = await db.execute(
+        select(func.count()).select_from(wishlist_items).where(wishlist_items.c.user_id == user_id)
+    )
+    return result.scalar_one()
 
 async def update_profile(
     data: UpdateProfileRequest,

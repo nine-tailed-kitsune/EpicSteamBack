@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.user import User
 from app.schemas.auth import RegisterRequest, TokenResponse
-from app.auth import hash_password, verify_password, create_access_token
+from app.auth import hash_password, verify_password, create_access_token, is_currently_banned
 
 async def register_user(data: RegisterRequest, db: AsyncSession) -> User:
     result = await db.execute(
@@ -36,5 +36,8 @@ async def login_user(username: str, password: str, db: AsyncSession) -> TokenRes
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Неверное имя пользователя или пароль"
         )
+
+    if is_currently_banned(user):
+        raise HTTPException(status_code=403, detail="Вы заблокированы и не можете войти")
 
     return TokenResponse(access_token=create_access_token(user.id))

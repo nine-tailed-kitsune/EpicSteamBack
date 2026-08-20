@@ -8,6 +8,7 @@ class UserOut(BaseModel):
     avatar_url: str | None
     background_url: str | None
     is_admin: bool
+    is_owner: bool
     is_banned: bool
     banned_until: datetime | None
     created_at: datetime

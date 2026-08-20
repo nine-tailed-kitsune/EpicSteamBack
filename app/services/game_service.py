@@ -1,6 +1,6 @@
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from app.models.game import Game
 from app.models.comment import GameComment
@@ -11,33 +11,62 @@ from app.schemas.comment import GameCommentOut, AddCommentRequest
 async def get_all_games(skip: int, limit: int, db: AsyncSession) -> list[Game]:
     result = await db.execute(
         select(Game)
-        .options(selectinload(Game.screenshots))
+        .options(selectinload(Game.screenshots), selectinload(Game.category))
         .order_by(Game.created_at.desc())
         .offset(skip)
         .limit(limit)
     )
     return list(result.scalars().all())
 
+def build_search_filters(q: str, category_id: int | None, min_price: float | None, max_price: float | None):
+    filters = []
+    if q:
+        filters.append(Game.title.ilike(f"%{q}%"))
+    if category_id is not None:
+        filters.append(Game.category_id == category_id)
+    if min_price is not None:
+        filters.append(Game.price >= min_price)
+    if max_price is not None:
+        filters.append(Game.price <= max_price)
+    return filters
+
 async def search_games(
     q: str,
-    genre: str | None,
+    category_id: int | None,
+    min_price: float | None,
+    max_price: float | None,
+    db: AsyncSession,
+    skip: int | None = None,
+    limit: int | None = None
+) -> list[Game]:
+    filters = build_search_filters(q, category_id, min_price, max_price)
+    query = select(Game).options(selectinload(Game.screenshots), selectinload(Game.category))
+    for condition in filters:
+        query = query.where(condition)
+
+    query = query.order_by(Game.created_at.desc())
+    if skip is not None:
+        query = query.offset(skip)
+    if limit is not None:
+        query = query.limit(limit)
+
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+async def count_search_games(
+    q: str,
+    category_id: int | None,
     min_price: float | None,
     max_price: float | None,
     db: AsyncSession
-) -> list[Game]:
-    query = select(Game).options(selectinload(Game.screenshots))
+) -> int:
+    filters = build_search_filters(q, category_id, min_price, max_price)
+    query = select(func.count()).select_from(Game)
+    for condition in filters:
+        query = query.where(condition)
 
-    if q:
-        query = query.where(Game.title.ilike(f"%{q}%"))
-    if genre:
-        query = query.where(Game.genre.ilike(f"%{genre}%"))
-    if min_price is not None:
-        query = query.where(Game.price >= min_price)
-    if max_price is not None:
-        query = query.where(Game.price <= max_price)
-
-    result = await db.execute(query.order_by(Game.created_at.desc()))
-    return list(result.scalars().all())
+    result = await db.execute(query)
+    return result.scalar_one()
 
 async def get_game_by_id(game_id: int, db: AsyncSession) -> GameDetailOut:
     result = await db.execute(
@@ -45,6 +74,7 @@ async def get_game_by_id(game_id: int, db: AsyncSession) -> GameDetailOut:
         .where(Game.id == game_id)
         .options(
             selectinload(Game.screenshots),
+            selectinload(Game.category),
             selectinload(Game.comments).selectinload(GameComment.author)
         )
     )
@@ -68,10 +98,11 @@ async def get_game_by_id(game_id: int, db: AsyncSession) -> GameDetailOut:
         title=game.title,
         description=game.description,
         price=game.price,
-        genre=game.genre,
+        category=game.category,
         release_date=game.release_date,
         header_image=game.header_image,
         trailer_url=game.trailer_url,
+        requirements=game.requirements,
         created_at=game.created_at,
         screenshots=[ScreenshotOut(id=s.id, url=s.url) for s in game.screenshots],
         comments=comments_out

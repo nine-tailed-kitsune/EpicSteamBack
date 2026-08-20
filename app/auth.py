@@ -26,6 +26,13 @@ def create_access_token(user_id: int) -> str:
     data = {"sub": str(user_id), "exp": expire}
     return jwt.encode(data, secret_key, algorithm=algorithm)
 
+def is_currently_banned(user: User) -> bool:
+    if not user.is_banned:
+        return False
+    if user.banned_until is None:
+        return True
+    return user.banned_until > datetime.utcnow()
+
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
@@ -49,13 +56,12 @@ async def get_current_user(
     if user is None:
         raise credentials_exception
 
-    if user.is_banned:
-        if user.banned_until is None or user.banned_until > datetime.now(timezone.utc):
-            raise HTTPException(status_code=403, detail="Вы заблокированы")
+    if is_currently_banned(user):
+        raise HTTPException(status_code=403, detail="Вы заблокированы")
 
     return user
 
 async def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
-    if not current_user.is_admin:
+    if not (current_user.is_admin or current_user.is_owner):
         raise HTTPException(status_code=403, detail="Нет доступа")
     return current_user

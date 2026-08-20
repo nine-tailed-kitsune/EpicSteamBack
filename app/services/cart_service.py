@@ -4,12 +4,16 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.models.user import User
 from app.models.game import Game
+from app.models.purchase import Purchase
 
 async def get_cart(current_user: User, db: AsyncSession) -> list[Game]:
     result = await db.execute(
         select(User)
         .where(User.id == current_user.id)
-        .options(selectinload(User.cart).selectinload(Game.screenshots))
+        .options(
+            selectinload(User.cart).selectinload(Game.screenshots),
+            selectinload(User.cart).selectinload(Game.category)
+        )
     )
     user = result.scalar_one()
     return user.cart
@@ -59,3 +63,21 @@ async def clear_cart(current_user: User, db: AsyncSession) -> dict:
     user.cart.clear()
     await db.commit()
     return {"detail": "Корзина очищена"}
+
+async def checkout(current_user: User, db: AsyncSession) -> dict:
+    result = await db.execute(
+        select(User)
+        .where(User.id == current_user.id)
+        .options(selectinload(User.cart))
+    )
+    user = result.scalar_one()
+
+    if not user.cart:
+        raise HTTPException(status_code=400, detail="Корзина пуста")
+
+    for game in user.cart:
+        db.add(Purchase(user_id=user.id, game_id=game.id, price_paid=game.price))
+
+    user.cart.clear()
+    await db.commit()
+    return {"detail": "Покупка оформлена, игры добавлены в вашу библиотеку"}

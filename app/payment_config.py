@@ -1,0 +1,4 @@
+YOOKASSA_SHOP_ID = "ВАШ_SHOP_ID"
+YOOKASSA_SECRET_KEY = "ВАШ_SECRET_KEY"
+
+FRONTEND_URL = "http://localhost:5173"

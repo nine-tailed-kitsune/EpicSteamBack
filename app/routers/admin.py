@@ -5,8 +5,9 @@ from app.models.user import User
 from app.schemas.user import UserOut
 from app.schemas.comment import BanRequest
 from app.schemas.game import GameOut, CreateGameRequest, UpdateGameRequest
+from app.schemas.category import CategoryOut, CreateCategoryRequest
 from app.auth import get_current_admin
-from app.services import admin_service
+from app.services import admin_service, category_service, forum_service
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -90,3 +91,27 @@ async def delete_profile_comment(
     current_user: User = Depends(get_current_admin)
 ):
     await admin_service.delete_profile_comment_admin(comment_id, db)
+
+@router.post("/categories", response_model=CategoryOut, status_code=201)
+async def create_category(
+    data: CreateCategoryRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    return await category_service.create_category(data, db)
+
+@router.delete("/categories/{category_id}", status_code=204)
+async def delete_category(
+    category_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    await category_service.delete_category(category_id, db)
+
+@router.delete("/forum-threads/{thread_id}", status_code=204)
+async def delete_forum_thread(
+    thread_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    await forum_service.delete_thread(thread_id, db)

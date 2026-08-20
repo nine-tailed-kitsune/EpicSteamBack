@@ -10,7 +10,9 @@ from app.schemas.game import CreateGameRequest, UpdateGameRequest
 
 async def get_game_with_screenshots(game_id: int, db: AsyncSession) -> Game:
     result = await db.execute(
-        select(Game).where(Game.id == game_id).options(selectinload(Game.screenshots))
+        select(Game)
+        .where(Game.id == game_id)
+        .options(selectinload(Game.screenshots), selectinload(Game.category))
     )
     return result.scalar_one()
 
@@ -25,11 +27,11 @@ async def ban_user(user_id: int, data: BanRequest, current_user: User, db: Async
         raise HTTPException(status_code=404, detail="Пользователь не найден")
     if user.id == current_user.id:
         raise HTTPException(status_code=400, detail="Нельзя заблокировать самого себя")
-    if user.is_admin:
+    if user.is_admin or user.is_owner:
         raise HTTPException(status_code=400, detail="Нельзя заблокировать администратора")
 
     user.is_banned = True
-    user.banned_until = data.banned_until
+    user.banned_until = data.banned_until.replace(tzinfo=None) if data.banned_until else None
     await db.commit()
     await db.refresh(user)
     return user
@@ -66,6 +68,8 @@ async def remove_admin(user_id: int, current_user: User, db: AsyncSession) -> Us
         raise HTTPException(status_code=404, detail="Пользователь не найден")
     if user.id == current_user.id:
         raise HTTPException(status_code=400, detail="Нельзя снять права с себя")
+    if user.is_owner:
+        raise HTTPException(status_code=400, detail="Нельзя снять права с владельца")
 
     user.is_admin = False
     await db.commit()
@@ -77,10 +81,11 @@ async def create_game(data: CreateGameRequest, db: AsyncSession) -> Game:
         title=data.title,
         description=data.description,
         price=data.price,
-        genre=data.genre,
+        category_id=data.category_id,
         release_date=data.release_date,
         header_image=data.header_image,
-        trailer_url=data.trailer_url
+        trailer_url=data.trailer_url,
+        requirements=data.requirements
     )
     db.add(game)
     await db.flush()
@@ -106,14 +111,16 @@ async def update_game(game_id: int, data: UpdateGameRequest, db: AsyncSession) -
         game.description = data.description
     if data.price is not None:
         game.price = data.price
-    if data.genre is not None:
-        game.genre = data.genre
+    if data.category_id is not None:
+        game.category_id = data.category_id
     if data.release_date is not None:
         game.release_date = data.release_date
     if data.header_image is not None:
         game.header_image = data.header_image
     if data.trailer_url is not None:
         game.trailer_url = data.trailer_url
+    if data.requirements is not None:
+        game.requirements = data.requirements
 
     if data.screenshots is not None:
         for s in list(game.screenshots):

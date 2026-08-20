@@ -20,12 +20,25 @@ async def get_games(
 @router.get("/search", response_model=list[GameOut])
 async def search_games(
     q: str = Query(""),
-    genre: str | None = Query(None),
+    category_id: int | None = Query(None),
+    min_price: float | None = Query(None),
+    max_price: float | None = Query(None),
+    skip: int | None = Query(None, ge=0),
+    limit: int | None = Query(None, ge=1, le=100),
+    db: AsyncSession = Depends(get_db)
+):
+    return await game_service.search_games(q, category_id, min_price, max_price, db, skip, limit)
+
+@router.get("/search/count")
+async def count_search_games(
+    q: str = Query(""),
+    category_id: int | None = Query(None),
     min_price: float | None = Query(None),
     max_price: float | None = Query(None),
     db: AsyncSession = Depends(get_db)
 ):
-    return await game_service.search_games(q, genre, min_price, max_price, db)
+    total = await game_service.count_search_games(q, category_id, min_price, max_price, db)
+    return {"total": total}
 
 @router.get("/{game_id}", response_model=GameDetailOut)
 async def get_game(game_id: int, db: AsyncSession = Depends(get_db)):
