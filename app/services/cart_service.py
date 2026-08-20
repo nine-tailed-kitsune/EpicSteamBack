@@ -25,6 +25,12 @@ async def add_to_cart(game_id: int, current_user: User, db: AsyncSession) -> dic
         raise HTTPException(status_code=404, detail="Игра не найдена")
 
     result = await db.execute(
+        select(Purchase).where(Purchase.user_id == current_user.id, Purchase.game_id == game_id)
+    )
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Игра уже есть в вашей библиотеке")
+
+    result = await db.execute(
         select(User)
         .where(User.id == current_user.id)
         .options(selectinload(User.cart))
