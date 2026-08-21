@@ -23,6 +23,13 @@ async def create_payment(current_user: User, db: AsyncSession) -> dict:
 
     total = sum(game.price for game in user.cart)
 
+    if total <= 0:
+        for game in user.cart:
+            db.add(Purchase(user_id=user.id, game_id=game.id, price_paid=game.price))
+        user.cart.clear()
+        await db.commit()
+        return {"order_id": None, "confirmation_url": None}
+
     order = Order(user_id=user.id, amount=total, status="pending")
     db.add(order)
     await db.flush()
